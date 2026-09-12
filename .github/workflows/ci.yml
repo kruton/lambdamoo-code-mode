@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 9 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Emacs ${{ matrix.emacs }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs:
+          - "29.1"
+          - "30.2"
+          - snapshot
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs }}
+
+      - name: Install current GNU ELPA dependencies
+        run: emacs -Q --batch -l test/install-deps.el
+
+      - name: Byte-compile with warnings as errors
+        run: make EMACSFLAGS="-Q -l $PWD/test/enable-packages.el" check
+
+      - name: Run tests
+        run: make EMACSFLAGS="-Q -l $PWD/test/enable-packages.el" test
